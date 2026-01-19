@@ -21,6 +21,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.4.0",
 ]
 local = [
@@ -47,3 +48,12 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "unit: Unit tests with mocked dependencies",
+    "integration: Integration tests requiring database",
+    "e2e: End-to-end tests requiring full infrastructure",
+    "requires_local_embeddings: Tests that require local embedding provider",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

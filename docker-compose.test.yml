@@ -1,0 +1,73 @@
+# Docker Compose configuration for Hippocampus test infrastructure
+#
+# Usage:
+#   docker-compose -f docker-compose.test.yml up -d
+#   pytest tests/
+#   docker-compose -f docker-compose.test.yml down
+#
+# Note: This requires custom PostgreSQL image with pg_kafka and pgvector extensions.
+# See README for building the image or use the standard postgres image for basic tests.
+
+services:
+  postgres-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.test-postgres
+      args:
+        PG_KAFKA_VERSION: main  # Pin to specific commit for reproducibility
+    image: hippocampus-postgres:test-latest
+    container_name: hippocampus-test-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hippocampus_test
+    command: >
+      postgres
+      -c shared_preload_libraries='pg_kafka,vector'
+      -c pg_kafka.port=9092
+      -c pg_kafka.host=0.0.0.0
+    ports:
+      - "5433:5432"  # Avoid conflict with dev environment
+      - "9093:9092"  # Kafka protocol port
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hippocampus_test && psql -U postgres -d hippocampus_test -c 'SELECT 1 FROM kafka.topics LIMIT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10  # Extensions take time to load
+    networks:
+      - default
+      - devcontainer
+
+  # Optional: Kafka for full E2E tests
+  # Uncomment if needed for consumer tests with real Kafka
+  #
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.5.0
+  #   container_name: hippocampus-test-zk
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   ports:
+  #     - "2181:2181"
+  #
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.5.0
+  #   container_name: hippocampus-test-kafka
+  #   depends_on:
+  #     - zookeeper
+  #   ports:
+  #     - "9093:9092"
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+# Network for test services
+networks:
+  default:
+    name: hippocampus-test-network
+  devcontainer:
+    external: true
+    name: hippocampus_devcontainer_default

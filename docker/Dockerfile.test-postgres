@@ -1,0 +1,64 @@
+# Build pg_kafka from source
+# Use bookworm (Debian 12) to match pgvector runtime GLIBC 2.36
+FROM rust:bookworm AS builder
+
+# Install PostgreSQL dev headers and build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libclang-dev \
+    libsasl2-dev \
+    zlib1g-dev \
+    libzstd-dev \
+    liblz4-dev \
+    cmake \
+    git \
+    curl \
+    ca-certificates \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add PostgreSQL APT repository for version 17
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y postgresql-server-dev-17 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pgrx (Postgres extension framework)
+RUN rustup default nightly
+RUN cargo install cargo-pgrx --version 0.16.1 --locked
+RUN cargo pgrx init --pg17 $(which pg_config)
+
+# Clone and build pg_kafka
+ARG PG_KAFKA_VERSION=main
+RUN git clone https://github.com/RTrentJones/pg_kafka.git /pg_kafka
+WORKDIR /pg_kafka
+RUN git checkout ${PG_KAFKA_VERSION}
+
+# Build with the already-installed nightly toolchain
+# Override rustup to prevent auto-updates and avoid cross-device link errors
+RUN rustup override set nightly && \
+    rustup show && \
+    cargo pgrx package
+
+# Runtime image: pgvector base + pg_kafka
+FROM pgvector/pgvector:pg17
+
+LABEL maintainer="hippocampus"
+LABEL description="PostgreSQL 17 with pg_kafka and pgvector for Hippocampus testing"
+
+# Copy pg_kafka extension files from builder
+COPY --from=builder /pg_kafka/target/release/pg_kafka-pg17/usr/share/postgresql/17/extension/* \
+    /usr/share/postgresql/17/extension/
+COPY --from=builder /pg_kafka/target/release/pg_kafka-pg17/usr/lib/postgresql/17/lib/* \
+    /usr/lib/postgresql/17/lib/
+
+# Copy initialization scripts
+COPY docker/init-extensions.sql /docker-entrypoint-initdb.d/00-extensions.sql
+COPY migrations/001_embeddings.sql /docker-entrypoint-initdb.d/01-embeddings.sql
+
+# Expose both Postgres and Kafka protocol ports
+# Note: pg_kafka configuration is handled via command line args in docker-compose.yml
+EXPOSE 5432 9092

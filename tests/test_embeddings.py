@@ -4,8 +4,8 @@ import pytest
 
 from hippocampus.embeddings import (
     MockEmbeddings,
-    format_for_embedding,
     create_provider,
+    format_for_embedding,
 )
 
 

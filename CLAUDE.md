@@ -97,6 +97,99 @@ pytest -v
 pytest -s
 ```
 
+## Testing Infrastructure
+
+### Build Test Database Image
+
+The test suite requires PostgreSQL 17 with pg_kafka and pgvector extensions. We provide a custom Docker image for reproducible testing.
+
+```bash
+# Build custom test image (takes 5-10 minutes on first build)
+./scripts/build-test-image.sh
+
+# Verify image works correctly
+./scripts/verify-test-image.sh
+```
+
+### Run Tests
+
+```bash
+# Start test environment
+docker-compose -f docker-compose.test.yml up -d
+
+# Wait for healthy status (may take up to 50 seconds for extension loading)
+docker-compose -f docker-compose.test.yml ps
+
+# Run all tests
+pytest
+
+# Run specific test suites
+pytest tests/integration/ -v  # Integration tests (requires database)
+pytest tests/e2e/ -v          # E2E tests (requires database)
+pytest tests/unit/ -v         # Unit tests (no database required)
+
+# Run with coverage
+pytest --cov=hippocampus --cov-report=html
+
+# Stop environment
+docker-compose -f docker-compose.test.yml down -v  # -v removes volumes
+```
+
+### Test Environment Details
+
+- **PostgreSQL:** 17 with pg_kafka + pgvector extensions
+- **Port:** 5433 (avoids conflict with dev environment on 5432)
+- **Kafka Protocol:** Port 9093 (pg_kafka embedded broker)
+- **Database:** `hippocampus_test`
+- **Connection:** `postgresql://postgres:postgres@localhost:5433/hippocampus_test`
+
+### Rebuild Image
+
+Rebuild when pg_kafka updates or dependencies change:
+
+```bash
+# Full rebuild without cache
+./scripts/build-test-image.sh --no-cache
+```
+
+### Troubleshooting
+
+**Container won't start or healthcheck fails:**
+- Check logs: `docker-compose -f docker-compose.test.yml logs postgres-test`
+- Extensions take 5-10 seconds to load on first startup
+- Healthcheck allows up to 10 retries (50 seconds total)
+
+**Tests still skipping:**
+- Verify container is healthy: `docker-compose -f docker-compose.test.yml ps`
+- Test database connection: `docker-compose -f docker-compose.test.yml exec postgres-test psql -U postgres -c '\dx'`
+- Should see `pg_kafka` and `vector` extensions listed
+
+### Running Tests from Devcontainer
+
+When running tests from inside the devcontainer, the test database is accessible via container name:
+
+```bash
+# Set the environment variable for devcontainer testing
+export TEST_DATABASE_URL=postgresql://postgres:postgres@hippocampus-test-db:5432/hippocampus_test
+
+# Or source the .env.test file
+source .env.test && pytest tests/
+```
+
+**Network Configuration:** The test container automatically joins both `hippocampus-test-network` and `hippocampus_devcontainer_default` to allow connections from inside the devcontainer.
+
+**Quick Start (Devcontainer):**
+```bash
+# 1. Start the test database
+docker-compose -f docker-compose.test.yml up -d
+
+# 2. Wait for healthy status (~15 seconds)
+docker-compose -f docker-compose.test.yml ps
+
+# 3. Run tests with correct database URL
+TEST_DATABASE_URL=postgresql://postgres:postgres@hippocampus-test-db:5432/hippocampus_test pytest tests/
+```
+
 ## Kafka Commands
 
 ```bash

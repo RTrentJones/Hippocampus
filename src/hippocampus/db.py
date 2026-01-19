@@ -1,9 +1,19 @@
 """Database connection and queries for Hippocampus."""
 
+import json
+
 import asyncpg
 from pgvector.asyncpg import register_vector
 
 from .config import settings
+
+
+def _deserialize_row(row: asyncpg.Record) -> dict:
+    """Convert a database row to dict, deserializing bytea 'value' field if present."""
+    result = dict(row)
+    if "value" in result and isinstance(result["value"], bytes):
+        result["value"] = json.loads(result["value"].decode("utf-8"))
+    return result
 
 # Global connection pool
 _pool: asyncpg.Pool | None = None
@@ -54,7 +64,7 @@ async def store_embedding(
     try:
         await pool.execute(
             """
-            INSERT INTO hippocampus.embeddings 
+            INSERT INTO hippocampus.embeddings
                 (topic_id, partition_id, partition_offset, embedding)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT DO NOTHING
@@ -194,7 +204,7 @@ async def find_similar(
             limit,
         )
 
-    return [dict(row) for row in rows]
+    return [_deserialize_row(row) for row in rows]
 
 
 # =============================================================================
@@ -259,7 +269,7 @@ async def replay_causal_chain(
         )
 
     # Return in chronological order (oldest first)
-    return [dict(row) for row in reversed(rows)]
+    return [_deserialize_row(row) for row in reversed(rows)]
 
 
 async def replay_topic(
@@ -298,7 +308,7 @@ async def replay_topic(
         from_offset,
         limit,
     )
-    return [dict(row) for row in rows]
+    return [_deserialize_row(row) for row in rows]
 
 
 async def temporal_context(
@@ -319,20 +329,20 @@ async def temporal_context(
     pool = await get_pool()
     rows = await pool.fetch(
         """
-        SELECT 
+        SELECT
             m.value,
             t.name AS topic,
             m.global_offset,
             m.created_at
         FROM kafka.messages m
         JOIN kafka.topics t ON m.topic_id = t.id
-        WHERE m.global_offset BETWEEN $1 - $2 AND $1 + $2
+        WHERE m.global_offset BETWEEN $1::bigint - $2::int AND $1::bigint + $2::int
         ORDER BY m.global_offset
         """,
         global_offset,
         window,
     )
-    return [dict(row) for row in rows]
+    return [_deserialize_row(row) for row in rows]
 
 
 async def what_touched(
@@ -353,18 +363,18 @@ async def what_touched(
     pool = await get_pool()
     rows = await pool.fetch(
         """
-        SELECT 
+        SELECT
             m.value,
             t.name AS topic,
             m.global_offset,
             m.created_at
         FROM kafka.messages m
         JOIN kafka.topics t ON m.topic_id = t.id
-        WHERE m.value->>'anchor' LIKE $1
+        WHERE (convert_from(m.value, 'UTF8')::jsonb)->>'anchor' LIKE $1
         ORDER BY m.global_offset DESC
         LIMIT $2
         """,
         f"%{anchor}%",
         limit,
     )
-    return [dict(row) for row in rows]
+    return [_deserialize_row(row) for row in rows]
