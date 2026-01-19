@@ -1,0 +1,41 @@
+{
+    "name": "Hippocampus",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "dev",
+    "workspaceFolder": "/workspace",
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "charliermarsh.ruff",
+                "mtxr.sqltools",
+                "mtxr.sqltools-driver-pg",
+                "Anthropic.claude-code"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.analysis.typeCheckingMode": "basic",
+                "sqltools.connections": [
+                    {
+                        "name": "pg_kafka",
+                        "driver": "PostgreSQL",
+                        "server": "postgres",
+                        "port": 5432,
+                        "database": "postgres",
+                        "username": "postgres",
+                        "password": "postgres"
+                    }
+                ]
+            }
+        }
+    },
+
+    "forwardPorts": [5432, 9092],
+    "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+    "remoteEnv": {
+        "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/postgres",
+        "KAFKA_BOOTSTRAP_SERVERS": "postgres:9092"
+    }
+}
