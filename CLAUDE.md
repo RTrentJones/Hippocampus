@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Status
+
+**Learning/exploration project** — not production-ready
+
+Hippocampus demonstrates minimal infrastructure patterns for AI agent memory. It prioritizes simplicity over scale, using only Postgres extensions where production systems might use dedicated services.
+
 ## Project Overview
 
 Hippocampus is a Temporal RAG (Retrieval Augmented Generation) layer for AI agents, built on top of [pg_kafka](https://github.com/RTrentJones/pg_kafka).
@@ -257,3 +263,32 @@ BATCH_TIMEOUT_MS=500
 - **Hatch**: Build/packaging (configured via pyproject.toml)
 - **Ruff**: Fast Python linter and formatter
 - **pytest**: Testing framework with asyncio support
+
+## Scaling Roadmap
+
+This project is intentionally minimal. When you outgrow it:
+
+### Storage Graduation
+
+| Current | Future | When to Graduate |
+|---------|--------|------------------|
+| pgvector | Pinecone/Weaviate | >1M vectors, need managed service |
+| Postgres tables | Neo4j | Complex graph traversals, relationship queries |
+| Single Postgres | Read replicas | Query latency requirements |
+
+### Messaging Graduation
+
+| Current | Future | When to Graduate |
+|---------|--------|------------------|
+| pg_kafka | Real Kafka | >10k msg/sec, multi-datacenter |
+| Single topic pattern | Topic partitioning | Need parallel consumers |
+
+### Why This Design Scales
+
+The MCP tool interface is stable. Graduation means swapping implementations:
+
+- `find_similar()` → calls pgvector today, Pinecone tomorrow
+- `replay_causal_chain()` → SQL recursive CTE today, Neo4j Cypher tomorrow
+- Consumer → reads from pg_kafka today, real Kafka tomorrow
+
+Same tools, same agent integration, different backends.
