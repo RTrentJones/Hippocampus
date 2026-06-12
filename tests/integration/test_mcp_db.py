@@ -51,12 +51,14 @@ class TestSerializeResult:
         """Test serializing nested structures."""
         from hippocampus.mcp_server import _serialize_result
 
-        result = _serialize_result({
-            "outer": {
-                "inner": {"value": "nested"},
-                "list": [1, 2, 3],
+        result = _serialize_result(
+            {
+                "outer": {
+                    "inner": {"value": "nested"},
+                    "list": [1, 2, 3],
+                }
             }
-        })
+        )
 
         assert "nested" in result
 
@@ -128,10 +130,29 @@ class TestFindSimilarTool:
         data = json.loads(result[0].text)
         assert isinstance(data, list)
 
-    async def test_find_similar_returns_results(
+    async def test_find_similar_semantic_returns_results(
         self, patched_db_pool, seeded_embeddings, patched_provider
     ):
-        """Test that find_similar returns matching results."""
+        """Test that semantic mode returns distance-ranked results."""
+        from hippocampus.mcp_server import call_tool
+
+        result = await call_tool(
+            "find_similar",
+            {"query": "authentication", "limit": 10, "mode": "semantic"},
+        )
+
+        import json
+
+        data = json.loads(result[0].text)
+
+        assert len(data) > 0
+        assert "value" in data[0]
+        assert "distance" in data[0]
+
+    async def test_find_similar_hybrid_returns_results(
+        self, patched_db_pool, seeded_embeddings, patched_provider
+    ):
+        """Test that the default hybrid mode returns RRF-scored results."""
         from hippocampus.mcp_server import call_tool
 
         result = await call_tool(
@@ -145,7 +166,7 @@ class TestFindSimilarTool:
 
         assert len(data) > 0
         assert "value" in data[0]
-        assert "distance" in data[0]
+        assert "rrf_score" in data[0]
 
     async def test_find_similar_with_topic_pattern(
         self, patched_db_pool, seeded_embeddings, patched_provider
@@ -174,9 +195,7 @@ class TestFindSimilarTool:
 class TestReplayCausalChainTool:
     """Tests for the replay_causal_chain tool."""
 
-    async def test_replay_causal_chain_returns_results(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_causal_chain_returns_results(self, patched_db_pool, seeded_messages):
         """Test that replay_causal_chain returns events."""
         from hippocampus.mcp_server import call_tool
 
@@ -195,9 +214,7 @@ class TestReplayCausalChainTool:
         assert "value" in data[0]
         assert "global_offset" in data[0]
 
-    async def test_replay_causal_chain_chronological(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_causal_chain_chronological(self, patched_db_pool, seeded_messages):
         """Test that results are in chronological order."""
         from hippocampus.mcp_server import call_tool
 
@@ -221,9 +238,7 @@ class TestReplayCausalChainTool:
 class TestReplayTopicTool:
     """Tests for the replay_topic tool."""
 
-    async def test_replay_topic_returns_results(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_topic_returns_results(self, patched_db_pool, seeded_messages):
         """Test that replay_topic returns messages."""
         from hippocampus.mcp_server import call_tool
 
@@ -238,9 +253,7 @@ class TestReplayTopicTool:
 
         assert len(data) == len(seeded_messages["messages"])
 
-    async def test_replay_topic_from_offset(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_topic_from_offset(self, patched_db_pool, seeded_messages):
         """Test replay_topic with from_offset."""
         from hippocampus.mcp_server import call_tool
 
@@ -261,9 +274,7 @@ class TestReplayTopicTool:
 class TestTemporalContextTool:
     """Tests for the temporal_context tool."""
 
-    async def test_temporal_context_returns_results(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_temporal_context_returns_results(self, patched_db_pool, seeded_messages):
         """Test that temporal_context returns events."""
         from hippocampus.mcp_server import call_tool
 
@@ -280,9 +291,7 @@ class TestTemporalContextTool:
 
         assert len(data) > 0
 
-    async def test_temporal_context_respects_window(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_temporal_context_respects_window(self, patched_db_pool, seeded_messages):
         """Test that window parameter works."""
         from hippocampus.mcp_server import call_tool
 
@@ -306,9 +315,7 @@ class TestTemporalContextTool:
 class TestWhatTouchedTool:
     """Tests for the what_touched tool."""
 
-    async def test_what_touched_finds_files(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_what_touched_finds_files(self, patched_db_pool, seeded_messages):
         """Test that what_touched finds matching anchors."""
         from hippocampus.mcp_server import call_tool
 
@@ -325,9 +332,7 @@ class TestWhatTouchedTool:
         for item in data:
             assert "auth.py" in item["value"].get("anchor", "")
 
-    async def test_what_touched_respects_limit(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_what_touched_respects_limit(self, patched_db_pool, seeded_messages):
         """Test that limit is respected."""
         from hippocampus.mcp_server import call_tool
 

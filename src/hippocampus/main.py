@@ -8,7 +8,9 @@ Entry points:
 
 import argparse
 import asyncio
+import contextlib
 import logging
+import signal
 import sys
 
 logging.basicConfig(
@@ -18,19 +20,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _install_signal_handlers(consumer) -> None:
+    """Stop the consumer cleanly on SIGINT/SIGTERM.
+
+    The consumer finishes (or retries) its in-flight batch before exiting, so
+    a shutdown never commits offsets for unprocessed messages.
+    """
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with contextlib.suppress(NotImplementedError):  # e.g., Windows
+            loop.add_signal_handler(sig, consumer.stop)
+
+
 async def run_both():
     """Run both consumer and MCP server concurrently."""
     from .consumer import EmbeddingConsumer
     from .mcp_server import run_server
 
     consumer = EmbeddingConsumer()
-
-    async def consumer_task():
-        await consumer.start(mode="batch")
+    _install_signal_handlers(consumer)
 
     # Run both concurrently
     await asyncio.gather(
-        consumer_task(),
+        consumer.start(mode="batch"),
         run_server(),
     )
 
@@ -47,6 +59,7 @@ async def run_consumer(mode: str = "batch"):
     from .consumer import EmbeddingConsumer
 
     consumer = EmbeddingConsumer()
+    _install_signal_handlers(consumer)
     await consumer.start(mode=mode)
 
 

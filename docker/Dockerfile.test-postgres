@@ -55,9 +55,9 @@ COPY --from=builder /pg_kafka/target/release/pg_kafka-pg17/usr/share/postgresql/
 COPY --from=builder /pg_kafka/target/release/pg_kafka-pg17/usr/lib/postgresql/17/lib/* \
     /usr/lib/postgresql/17/lib/
 
-# Copy initialization scripts
+# Copy initialization scripts (migrations run in filename order after 00-extensions)
 COPY docker/init-extensions.sql /docker-entrypoint-initdb.d/00-extensions.sql
-COPY migrations/001_embeddings.sql /docker-entrypoint-initdb.d/01-embeddings.sql
+COPY migrations/*.sql /docker-entrypoint-initdb.d/
 
 # Expose both Postgres and Kafka protocol ports
 # Note: pg_kafka configuration is handled via command line args in docker-compose.yml

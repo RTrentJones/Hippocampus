@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Consumer
     batch_size: int = 100
     batch_timeout_ms: int = 500
+    # Retries before the consumer fail-stops on a persistently failing batch
+    consumer_max_retries: int = 5
+    consumer_retry_backoff_ms: int = 1000
 
     # MCP Server
     mcp_server_name: str = "hippocampus"
