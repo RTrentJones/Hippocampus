@@ -28,6 +28,9 @@ dev = [
 local = [
     "sentence-transformers>=2.2.0",
 ]
+evals = [
+    "anthropic>=0.92.0",
+]
 
 [project.scripts]
 hippocampus = "hippocampus.main:main"
@@ -48,13 +51,13 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/hippocampus"]
+files = ["src/hippocampus", "evals"]
 check_untyped_defs = true
 warn_unused_ignores = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["kafka.*", "pgvector.*", "sentence_transformers.*", "mcp.*", "asyncpg.*"]
+module = ["kafka.*", "pgvector.*", "sentence_transformers.*", "mcp.*", "asyncpg.*", "anthropic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
