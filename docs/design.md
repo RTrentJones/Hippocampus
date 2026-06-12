@@ -1,4 +1,11 @@
-# Hippocampus: Claude Code Project Scaffold
+# Hippocampus: Design Document
+
+> **Provenance note:** This document began as the project's initial design
+> scaffold (originally `scaffold.md`, used to bootstrap development with
+> Claude Code). It is preserved as a design reference. Where it diverges from
+> the implementation, the code and [README](../README.md) are authoritative —
+> notably, causal links were initially aspirational and are now implemented
+> via `hippocampus.causal_edges` (see `migrations/002_causal_edges_hybrid_search.sql`).
 
 ## Overview
 
