@@ -48,9 +48,7 @@ class TestSemanticSearchBasics:
 
         query_embedding = await embedding_provider.embed_one("test query")
 
-        results = await find_similar(
-            query_embedding, limit=10, topic_pattern="decisions.test.%"
-        )
+        results = await find_similar(query_embedding, limit=10, topic_pattern="decisions.test.%")
 
         for result in results:
             assert result["topic"].startswith("decisions.test.")
@@ -134,16 +132,16 @@ class TestSemanticSearchRanking:
             await store_embedding(topic_id, 0, msg["offset"], embedding)
 
         # Query for database-related issues
-        query_embedding = await embedding_provider.embed_one(
-            "database connection problems"
-        )
+        query_embedding = await embedding_provider.embed_one("database connection problems")
         results = await find_similar(query_embedding, limit=4)
 
         # The database-related message should be the top result
         assert len(results) > 0
         top_result = results[0]["value"]
-        assert "database" in top_result.get("context", "").lower() or \
-               "pool" in top_result.get("context", "").lower()
+        assert (
+            "database" in top_result.get("context", "").lower()
+            or "pool" in top_result.get("context", "").lower()
+        )
 
 
 @pytest.mark.e2e
@@ -204,9 +202,7 @@ class TestSemanticSearchWithMixedContent:
 
         query_embedding = await embedding_provider.embed_one("test query")
 
-        results = await find_similar(
-            query_embedding, limit=10, topic_pattern="nonexistent.topic.%"
-        )
+        results = await find_similar(query_embedding, limit=10, topic_pattern="nonexistent.topic.%")
 
         assert len(results) == 0
 
@@ -246,9 +242,7 @@ class TestSemanticSearchEdgeCases:
         await store_embedding(topic_id, 0, 4200, embedding)
 
         # Search with special characters
-        query_embedding = await embedding_provider.embed_one(
-            "NullPointerException error"
-        )
+        query_embedding = await embedding_provider.embed_one("NullPointerException error")
         results = await find_similar(query_embedding, limit=10)
 
         assert len(results) > 0

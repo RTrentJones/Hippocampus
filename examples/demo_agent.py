@@ -86,7 +86,10 @@ def main():
     d2 = publish_decision(
         producer,
         context="Found NullPointerException in AuthService.validateToken()",
-        reasoning="The stack trace shows the error originates from line 127. Need to check recent changes to this file.",
+        reasoning=(
+            "The stack trace shows the error originates from line 127. "
+            "Need to check recent changes to this file."
+        ),
         action="View git blame for AuthService.java around line 127",
         anchor="src/main/java/AuthService.java:127",
         parent_id=d1,
@@ -96,8 +99,13 @@ def main():
     # Decision 3: Found the commit
     d3 = publish_decision(
         producer,
-        context="Git blame shows commit abc123 by developer@company.com modified this line yesterday",
-        reasoning="The commit message says 'Optimize token validation'. This might have introduced a null check issue.",
+        context=(
+            "Git blame shows commit abc123 by developer@company.com modified this line yesterday"
+        ),
+        reasoning=(
+            "The commit message says 'Optimize token validation'. "
+            "This might have introduced a null check issue."
+        ),
         action="View full diff for commit abc123",
         anchor="commit:abc123",
         parent_id=d2,
@@ -107,8 +115,14 @@ def main():
     # Decision 4: Found the bug
     d4 = publish_decision(
         producer,
-        context="Commit abc123 removed a null check for userSession.getToken() as part of 'optimization'",
-        reasoning="The removed null check was protecting against expired sessions. When a session expires, getToken() returns null, causing the NPE.",
+        context=(
+            "Commit abc123 removed a null check for userSession.getToken() "
+            "as part of 'optimization'"
+        ),
+        reasoning=(
+            "The removed null check was protecting against expired sessions. When a "
+            "session expires, getToken() returns null, causing the NPE."
+        ),
         action="Create fix: restore null check and add unit test",
         anchor="src/main/java/AuthService.java:125-130",
         parent_id=d3,
@@ -119,7 +133,9 @@ def main():
     d5 = publish_decision(
         producer,
         context="Fix implemented and tested locally",
-        reasoning="Unit test confirms the fix handles null tokens correctly. Ready for code review.",
+        reasoning=(
+            "Unit test confirms the fix handles null tokens correctly. Ready for code review."
+        ),
         action="Create pull request with fix and regression test",
         anchor="PR:fix-auth-npe-456",
         parent_id=d4,
@@ -127,7 +143,8 @@ def main():
 
     print()
     print("=" * 60)
-    print("Demo complete! Published 5 decisions to topic:")
+    print(f"Demo complete! Published 5 causally-linked decisions (last: {d5})")
+    print("to topic:")
     print(f"  {TOPIC}")
     print()
     print("Now you can query this with Hippocampus MCP tools:")
