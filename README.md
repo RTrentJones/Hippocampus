@@ -1,5 +1,7 @@
 # Hippocampus
 
+[![CI](https://github.com/RTrentJones/Hippocampus/actions/workflows/ci.yml/badge.svg)](https://github.com/RTrentJones/Hippocampus/actions/workflows/ci.yml)
+
 Temporal RAG for AI agents—semantic search meets causal replay. Minimal infrastructure built entirely on Postgres using pg_kafka + pgvector. No Kafka cluster, no vector DB, just extensions.
 
 ## The Problem
@@ -7,8 +9,31 @@ Temporal RAG for AI agents—semantic search meets causal replay. Minimal infras
 Standard RAG returns disconnected chunks based on semantic similarity. When debugging AI agents, you need to understand *what happened before*—the causal chain that led to a decision, not just similar decisions.
 
 **Hippocampus combines:**
-- **Semantic search** → Find an anchor point ("when did the agent touch auth?")
-- **Temporal traversal** → Walk backward through the event log ("what led to that?")
+- **Hybrid search** → Find an anchor point ("when did the agent touch auth?") via embedding similarity fused with keyword matching (RRF)
+- **Causal traversal** → Walk explicit decision-to-decision links backward from that anchor ("what led to that?"), with a temporal-window fallback when no links were declared
+
+### Declaring causality
+
+Producers cannot know broker offsets at publish time, so causality is declared
+with producer-assigned IDs in the decision payload:
+
+```json
+{
+  "id": "d2",
+  "parent_id": "d1",
+  "context": "Found NullPointerException in AuthService.validateToken()",
+  "reasoning": "Stack trace points at line 127; check recent changes",
+  "action": "View git blame for AuthService.java:127",
+  "anchor": "src/main/java/AuthService.java:127"
+}
+```
+
+The embedding consumer resolves `parent_id` / `caused_by` (string or list) to
+broker offsets and stores edges in `hippocampus.causal_edges`.
+`replay_causal_chain` then walks those edges with a recursive CTE. Decisions
+that never declare a parent still work—retrieval degrades to the events
+immediately preceding the anchor in time, and every result is tagged with
+which guarantee it carries (`causal_graph` vs `temporal_window`).
 
 ## Why Postgres-Only?
 
@@ -39,8 +64,9 @@ pip install -e ".[dev]"
 cp .env.example .env
 # Edit .env: add OPENAI_API_KEY, set DATABASE_URL
 
-# Run migrations
+# Run migrations (in order)
 psql -f migrations/001_embeddings.sql
+psql -f migrations/002_causal_edges_hybrid_search.sql
 
 # Start the embedding consumer (processes agent decisions)
 hippocampus consumer
@@ -68,11 +94,11 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 | Tool | Purpose |
 |------|---------|
-| `find_similar(query, limit?)` | Semantic search across all agent decisions |
-| `replay_causal_chain(anchor_offset, lookback?)` | Walk backward from an anchor point |
+| `find_similar(query, limit?, mode?)` | Search agent decisions: `hybrid` (default, vector + keyword RRF) or `semantic` (vector only) |
+| `replay_causal_chain(anchor_offset, lookback?)` | Walk causal edges backward from an anchor; temporal-window fallback when no edges exist |
 | `replay_topic(topic_name, from_offset?, limit?)` | View a single agent's decision history |
 | `temporal_context(global_offset, window?)` | See all agents at a point in time |
-| `what_touched(anchor, limit?)` | Find decisions affecting a file/location |
+| `what_touched(anchor, limit?)` | Find decisions affecting a file/location (trigram-indexed) |
 
 ## Scaling Roadmap
 

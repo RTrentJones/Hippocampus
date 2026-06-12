@@ -22,9 +22,20 @@ from mcp.types import TextContent, Tool
 from .config import settings
 from .db import (
     find_similar as db_find_similar,
+)
+from .db import (
+    hybrid_search as db_hybrid_search,
+)
+from .db import (
     replay_causal_chain as db_replay_causal_chain,
+)
+from .db import (
     replay_topic as db_replay_topic,
+)
+from .db import (
     temporal_context as db_temporal_context,
+)
+from .db import (
     what_touched as db_what_touched,
 )
 from .embeddings import get_provider
@@ -56,9 +67,11 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="find_similar",
             description=(
-                "Find agent decisions semantically similar to a query. "
+                "Find agent decisions matching a query. "
                 "Use this to find relevant context, similar problems, or related decisions. "
-                "Returns messages ranked by similarity."
+                "Mode 'semantic' ranks by embedding similarity only; 'hybrid' fuses "
+                "embedding similarity with keyword (full-text) matching, which is better "
+                "for queries containing exact identifiers like file names or error codes."
             ),
             inputSchema={
                 "type": "object",
@@ -74,7 +87,13 @@ async def list_tools() -> list[Tool]:
                     },
                     "topic_pattern": {
                         "type": "string",
-                        "description": "Optional LIKE pattern to filter topics (e.g., 'decisions.%')",
+                        "description": "Optional LIKE pattern for topics (e.g., 'decisions.%')",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["semantic", "hybrid"],
+                        "description": "Retrieval mode (default: 'hybrid')",
+                        "default": "hybrid",
                     },
                 },
                 "required": ["query"],
@@ -83,8 +102,11 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="replay_causal_chain",
             description=(
-                "Replay the sequence of events leading up to a specific point. "
-                "Use this to understand why something happened by seeing what came before. "
+                "Replay the events that led to a specific point. "
+                "Follows explicit causal links (decisions that declared a parent) when "
+                "they exist; otherwise falls back to the events immediately preceding "
+                "the anchor in time. Each event's `retrieval` field says which you got "
+                "('causal_graph' or 'temporal_window'). "
                 "Returns events in chronological order (oldest first)."
             ),
             inputSchema={
@@ -190,6 +212,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 query=arguments["query"],
                 limit=arguments.get("limit", 10),
                 topic_pattern=arguments.get("topic_pattern"),
+                mode=arguments.get("mode", "hybrid"),
             )
         elif name == "replay_causal_chain":
             result = await db_replay_causal_chain(
@@ -227,13 +250,20 @@ async def _find_similar(
     query: str,
     limit: int = 10,
     topic_pattern: str | None = None,
+    mode: str = "hybrid",
 ) -> list[dict]:
     """Find similar messages (wraps db query with embedding generation)."""
     # Generate embedding for the query
     provider = get_provider()
     query_embedding = await provider.embed_one(query)
 
-    # Search
+    if mode == "hybrid":
+        return await db_hybrid_search(
+            query_text=query,
+            query_embedding=query_embedding,
+            limit=limit,
+            topic_pattern=topic_pattern,
+        )
     return await db_find_similar(
         query_embedding=query_embedding,
         limit=limit,

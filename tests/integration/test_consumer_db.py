@@ -77,9 +77,9 @@ class TestConsumerProcessing:
 
         # Store batch
         records = [(topic_id, 0, 600 + i, emb) for i, emb in enumerate(embeddings)]
-        result = await store_embeddings_batch(records)
+        inserted, _offsets = await store_embeddings_batch(records)
 
-        assert result == len(sample_decisions)
+        assert inserted == len(sample_decisions)
 
         # Verify all stored
         count = await patched_db_pool.fetchval(
@@ -106,7 +106,7 @@ class TestEmbeddingConsumer:
         assert consumer.topic_pattern == patched_settings.kafka_topic_pattern
         assert consumer.batch_size == patched_settings.batch_size
         assert consumer._running is False
-        assert consumer.stats == {"processed": 0, "errors": 0, "batches": 0}
+        assert consumer.stats == {"processed": 0, "errors": 0, "batches": 0, "edges": 0}
 
     async def test_consumer_stats(self, patched_settings, patched_provider):
         """Test consumer stats are independent copies."""

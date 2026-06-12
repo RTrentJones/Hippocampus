@@ -128,9 +128,9 @@ class TestFullPipeline:
             (ins["topic_id"], ins["partition_id"], ins["partition_offset"], emb)
             for ins, emb in zip(inserted, embeddings)
         ]
-        result = await store_embeddings_batch(records)
+        inserted, _offsets = await store_embeddings_batch(records)
 
-        assert result == len(messages)
+        assert inserted == len(messages)
 
         # Verify stored
         count = await patched_db_pool.fetchval(
@@ -197,9 +197,7 @@ class TestConsumerSimulation:
         texts = [format_for_embedding(msg) for msg in messages]
         embeddings = await embedding_provider.embed(texts)
 
-        records = [
-            (topic_id, 0, 1200 + i, emb) for i, emb in enumerate(embeddings)
-        ]
+        records = [(topic_id, 0, 1200 + i, emb) for i, emb in enumerate(embeddings)]
         await store_embeddings_batch(records)
 
         # 5. Update consumer offset

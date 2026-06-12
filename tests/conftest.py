@@ -7,7 +7,6 @@ This module provides:
 - Global state patching fixtures
 """
 
-import asyncio
 import os
 from unittest.mock import patch
 
@@ -79,10 +78,7 @@ def embedding_provider(embedding_provider_type):
         try:
             return LocalEmbeddings()  # Uses sentence-transformers (all-MiniLM-L6-v2)
         except ModuleNotFoundError:
-            pytest.skip(
-                "sentence-transformers not installed. "
-                "Run: pip install -e '.[dev,local]'"
-            )
+            pytest.skip("sentence-transformers not installed. Run: pip install -e '.[dev,local]'")
     else:
         from hippocampus.embeddings import MockEmbeddings
 
@@ -144,8 +140,16 @@ def test_settings(test_database_url, embedding_provider_type):
 
 @pytest.fixture
 def patched_settings(test_settings):
-    """Patch the global settings object."""
-    with patch("hippocampus.config.settings", test_settings):
+    """Patch the global settings object.
+
+    Modules import the settings object directly (`from .config import settings`),
+    so each module's reference must be patched, not just the config module's.
+    """
+    with (
+        patch("hippocampus.config.settings", test_settings),
+        patch("hippocampus.consumer.settings", test_settings),
+        patch("hippocampus.db.settings", test_settings),
+    ):
         yield test_settings
 
 
@@ -173,6 +177,10 @@ async def db_pool():
             url, min_size=2, max_size=5, init=lambda conn: register_vector(conn)
         )
     except Exception as e:
+        # Locally a missing database skips DB-bound tests; in CI that would
+        # silently turn the whole integration suite green, so fail instead.
+        if os.getenv("CI"):
+            pytest.fail(f"Database not available in CI: {e}")
         pytest.skip(f"Database not available: {e}")
         return
 
@@ -185,6 +193,7 @@ async def clean_db(db_pool):
     """Clean up test data before each test."""
     try:
         # Clean hippocampus tables but preserve schema
+        await db_pool.execute("DELETE FROM hippocampus.causal_edges")
         await db_pool.execute("DELETE FROM hippocampus.embeddings")
         await db_pool.execute("DELETE FROM hippocampus.consumer_state")
         # Clean kafka tables (messages references topics, so delete messages first)

@@ -132,7 +132,9 @@ class TestTemporalContextQueries:
                 """,
                 topic_id,
                 i,
-                json.dumps({"context": f"Agent{1 if i % 2 == 0 else 2} action {i}"}).encode("utf-8"),
+                json.dumps({"context": f"Agent{1 if i % 2 == 0 else 2} action {i}"}).encode(
+                    "utf-8"
+                ),
             )
             offsets.append(row["global_offset"])
 
@@ -182,9 +184,7 @@ class TestTemporalContextQueries:
 class TestTopicReplay:
     """Tests for replaying a single topic's history."""
 
-    async def test_replay_single_agent_session(
-        self, patched_db_pool, patched_provider
-    ):
+    async def test_replay_single_agent_session(self, patched_db_pool, patched_provider):
         """Test replaying a complete agent session."""
         from hippocampus.db import replay_topic
 
@@ -225,9 +225,7 @@ class TestTopicReplay:
         for i, result in enumerate(results):
             assert result["partition_offset"] == i
 
-    async def test_replay_topic_pagination(
-        self, patched_db_pool, patched_provider
-    ):
+    async def test_replay_topic_pagination(self, patched_db_pool, patched_provider):
         """Test paginating through a topic."""
         from hippocampus.db import replay_topic
 
@@ -266,9 +264,7 @@ class TestTopicReplay:
 class TestFileHistoryTracking:
     """Tests for tracking what decisions affected specific files."""
 
-    async def test_what_touched_tracks_file_history(
-        self, patched_db_pool, patched_provider
-    ):
+    async def test_what_touched_tracks_file_history(self, patched_db_pool, patched_provider):
         """Test finding all decisions that touched a file."""
         from hippocampus.db import what_touched
 
@@ -307,9 +303,7 @@ class TestFileHistoryTracking:
         for result in results:
             assert "routes.py" in result["value"]["anchor"]
 
-    async def test_what_touched_newest_first(
-        self, patched_db_pool, patched_provider
-    ):
+    async def test_what_touched_newest_first(self, patched_db_pool, patched_provider):
         """Test that what_touched returns results newest first."""
         from hippocampus.db import what_touched
 
@@ -327,7 +321,9 @@ class TestFileHistoryTracking:
                 """,
                 topic_id,
                 3100 + i,
-                json.dumps({"anchor": "src/target_file.py", "action": f"Change {i}"}).encode("utf-8"),
+                json.dumps({"anchor": "src/target_file.py", "action": f"Change {i}"}).encode(
+                    "utf-8"
+                ),
             )
 
         results = await what_touched("target_file.py", limit=10)

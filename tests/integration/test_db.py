@@ -55,19 +55,16 @@ class TestEmbeddingStorage:
         )
         assert result1 is True
 
-        # Second insert (duplicate) - should not raise
+        # Second insert (duplicate) - should not raise, and reports no new row
         result2 = await store_embedding(
             topic_id=topic_id,
             partition_id=0,
             partition_offset=200,
             embedding=embedding,
         )
-        # Note: Current implementation always returns True due to ON CONFLICT DO NOTHING
-        assert result2 is True
+        assert result2 is False
 
-    async def test_store_embeddings_batch(
-        self, patched_db_pool, seeded_topic, embedding_provider
-    ):
+    async def test_store_embeddings_batch(self, patched_db_pool, seeded_topic, embedding_provider):
         """Test batch embedding storage."""
         from hippocampus.db import store_embeddings_batch
 
@@ -75,12 +72,10 @@ class TestEmbeddingStorage:
         texts = ["Batch text 1", "Batch text 2", "Batch text 3"]
         embeddings = await embedding_provider.embed(texts)
 
-        records = [
-            (topic_id, 0, 300 + i, emb) for i, emb in enumerate(embeddings)
-        ]
+        records = [(topic_id, 0, 300 + i, emb) for i, emb in enumerate(embeddings)]
 
-        result = await store_embeddings_batch(records)
-        assert result == 3
+        inserted, _offsets = await store_embeddings_batch(records)
+        assert inserted == 3
 
         # Verify all were stored
         count = await patched_db_pool.fetchval(
@@ -96,8 +91,9 @@ class TestEmbeddingStorage:
         """Test batch storage with empty list."""
         from hippocampus.db import store_embeddings_batch
 
-        result = await store_embeddings_batch([])
-        assert result == 0
+        inserted, offsets = await store_embeddings_batch([])
+        assert inserted == 0
+        assert offsets == {}
 
 
 @pytest.mark.integration
@@ -193,9 +189,7 @@ class TestSemanticSearch:
 
         query_embedding = await embedding_provider.embed_one("test query")
 
-        results = await find_similar(
-            query_embedding, limit=10, topic_pattern="decisions.test.%"
-        )
+        results = await find_similar(query_embedding, limit=10, topic_pattern="decisions.test.%")
 
         # All results should match the pattern
         for result in results:
@@ -209,9 +203,7 @@ class TestSemanticSearch:
 
         query_embedding = await embedding_provider.embed_one("test query")
 
-        results = await find_similar(
-            query_embedding, limit=10, topic_pattern="nonexistent.%"
-        )
+        results = await find_similar(query_embedding, limit=10, topic_pattern="nonexistent.%")
 
         assert len(results) == 0
 
@@ -220,9 +212,7 @@ class TestSemanticSearch:
 class TestTemporalTraversal:
     """Tests for temporal traversal queries."""
 
-    async def test_replay_causal_chain_returns_results(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_causal_chain_returns_results(self, patched_db_pool, seeded_messages):
         """Test replaying causal chain."""
         from hippocampus.db import replay_causal_chain
 
@@ -234,9 +224,7 @@ class TestTemporalTraversal:
 
         assert len(results) > 0
 
-    async def test_replay_causal_chain_chronological_order(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_causal_chain_chronological_order(self, patched_db_pool, seeded_messages):
         """Test that causal chain returns events in chronological order (oldest first)."""
         from hippocampus.db import replay_causal_chain
 
@@ -249,9 +237,7 @@ class TestTemporalTraversal:
             offsets = [r["global_offset"] for r in results]
             assert offsets == sorted(offsets), "Results should be in chronological order"
 
-    async def test_replay_causal_chain_with_topic_pattern(
-        self, patched_db_pool, seeded_messages
-    ):
+    async def test_replay_causal_chain_with_topic_pattern(self, patched_db_pool, seeded_messages):
         """Test causal chain with topic filtering."""
         from hippocampus.db import replay_causal_chain
 
