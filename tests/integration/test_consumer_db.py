@@ -251,11 +251,13 @@ class TestConsumerProcessBatch:
         await consumer._process_batch([])
 
     async def test_process_batch_handles_embedding_error(
-        self, patched_db_pool, seeded_topic, mock_consumer_record
+        self, patched_db_pool, seeded_topic, mock_consumer_record, patched_provider
     ):
         """Test that embedding errors are handled gracefully."""
         from hippocampus.consumer import EmbeddingConsumer
 
+        # patched_provider keeps EmbeddingConsumer() from building a real
+        # (credentialed) provider; the failing mock below replaces it anyway.
         consumer = EmbeddingConsumer()
 
         # Mock provider to raise error
