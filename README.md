@@ -100,6 +100,23 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 | `temporal_context(global_offset, window?)` | See all agents at a point in time |
 | `what_touched(anchor, limit?)` | Find decisions affecting a file/location (trigram-indexed) |
 
+## Evals
+
+The central claim — *walking back from a failure beats retrieving by
+similarity* — is measurable, so [`evals/`](evals/README.md) measures it:
+synthetic agent sessions with planted causal chains and lexically-similar
+distractors, five retrieval arms (semantic, hybrid, temporal window, causal
+walk, and the full search-then-walk pipeline), scored with recall@k / MRR /
+nDCG, plus an optional LLM-judge pass for end-to-end root-cause accuracy.
+
+```bash
+python -m evals.run --provider local --sessions 40 --output results.json
+```
+
+CI runs a deterministic smoke eval on every change; see
+[evals/README.md](evals/README.md) for methodology and how to reproduce full
+results.
+
 ## Scaling Roadmap
 
 **Current:** Single Postgres instance with pg_kafka + pgvector

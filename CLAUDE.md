@@ -111,6 +111,10 @@ pytest -v
 
 # Run tests with print statements visible
 pytest -s
+
+# Run the retrieval eval (requires the test database; see evals/README.md)
+python -m evals.run --provider mock --sessions 8     # plumbing smoke
+python -m evals.run --provider local --sessions 40   # real embeddings
 ```
 
 ## Testing Infrastructure
@@ -266,7 +270,8 @@ CONSUMER_RETRY_BACKOFF_MS=1000
 - [src/hippocampus/main.py](src/hippocampus/main.py) - CLI entry point (with graceful shutdown)
 - [migrations/001_embeddings.sql](migrations/001_embeddings.sql) - Schema (embeddings table + consumer state)
 - [migrations/002_causal_edges_hybrid_search.sql](migrations/002_causal_edges_hybrid_search.sql) - Causal edges, full-text/trigram indexes
-- [.github/workflows/ci.yml](.github/workflows/ci.yml) - CI: lint, mypy, unit, then integration/e2e against the Docker test database
+- [evals/](evals/README.md) - Retrieval eval harness: synthetic causal datasets, five arms, metrics, optional LLM judge
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) - CI: lint, mypy, unit, then integration/e2e (including the eval smoke test) against the Docker test database
 
 ## Dependencies
 
