@@ -36,13 +36,19 @@ Agent (Cline, Claude Code, etc.)
 
 ### Key Architectural Patterns
 
-**Consumer State Tracking:** The embedding consumer uses `hippocampus.consumer_state` to track `last_global_offset`, enabling resumable processing. When the consumer restarts, it queries this table to determine where to resume, ensuring no messages are skipped or double-processed.
+**Resume point vs. watermark:** Kafka consumer-group offsets (committed only after a batch is fully stored) are the actual resume point after a restart. `hippocampus.consumer_state` tracks `last_global_offset` as an *embedding watermark* — the highest globally-ordered message that has been embedded — used for observability and lag/backfill checks, not for resuming.
 
-**Composite Key FK:** The embeddings table uses `(topic_id, partition_id, partition_offset)` as a composite FK to `kafka.messages`. This enables efficient joins while preserving Kafka's partitioning semantics.
+**Failure semantics (fail-stop):** Offsets are committed only after a batch is embedded and stored. A batch that keeps failing after `CONSUMER_MAX_RETRIES` attempts (exponential backoff) stops the consumer rather than being skipped, so messages are never committed past without being processed; they are redelivered on restart. Inserts are idempotent (`ON CONFLICT DO NOTHING`), so redelivery is safe.
+
+**Composite key join:** The embeddings table uses `(topic_id, partition_id, partition_offset)` as its primary key, matching `kafka.messages` row identity for efficient joins while preserving Kafka's partitioning semantics. (It is a join key, not an enforced FOREIGN KEY constraint — pg_kafka owns that table.) `global_offset` is denormalized onto embeddings at insert time so causal-edge and watermark queries skip the join.
+
+**Causal edges:** Producers declare causality via `parent_id` / `caused_by` payload fields holding producer-assigned decision IDs (producers can't know broker offsets at publish time). The consumer resolves IDs to global offsets — first within the batch, then against previously embedded decisions — and stores edges in `hippocampus.causal_edges`. `replay_causal_chain` walks edges with a recursive CTE and falls back to a temporal window when the anchor has no edges; results are tagged with `retrieval: causal_graph | temporal_window`.
+
+**Hybrid retrieval:** `find_similar` defaults to hybrid mode: pgvector cosine ranking fused with Postgres full-text search (`content_tsv` over the embedded text) using Reciprocal Rank Fusion. `mode: "semantic"` gives vector-only ranking.
 
 **Consumer Modes:** The embedding consumer supports two modes:
-- `sync`: Process one message at a time (simple, ~100 msg/sec)
-- `batch`: Batch messages before sending to embedding API (efficient, ~1000 msg/sec)
+- `sync`: Process one message at a time (simple, lower throughput)
+- `batch`: Batch messages before sending to embedding API (one API call per batch)
 
 The `embedded_messages` view provides a convenient join between `kafka.messages` and `hippocampus.embeddings`, including the topic name for easier querying.
 
@@ -59,8 +65,9 @@ pip install -e ".[dev,local]"
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 
-# Run migrations (requires Postgres with pg_kafka + pgvector extensions)
+# Run migrations in order (requires Postgres with pg_kafka + pgvector extensions)
 psql -f migrations/001_embeddings.sql
+psql -f migrations/002_causal_edges_hybrid_search.sql
 ```
 
 ## Common Commands
@@ -86,6 +93,9 @@ ruff check --fix .
 
 # Format code
 ruff format .
+
+# Type checking
+mypy
 
 # Run all tests
 pytest
@@ -217,11 +227,11 @@ kcat -C -b localhost:9092 -t decisions.test.001 -o end
 
 | Tool | Purpose |
 |------|---------|
-| `find_similar(query, limit?)` | Semantic search across all agent decisions |
-| `replay_causal_chain(anchor_offset, lookback?)` | Walk backward from an anchor point |
+| `find_similar(query, limit?, mode?)` | Search agent decisions: `hybrid` (default, vector + keyword RRF) or `semantic` (vector only) |
+| `replay_causal_chain(anchor_offset, lookback?)` | Walk causal edges backward from an anchor; temporal-window fallback when no edges exist |
 | `replay_topic(topic_name, from_offset?, limit?)` | View single agent's decision history |
 | `temporal_context(global_offset, window?)` | See all agents at a point in time |
-| `what_touched(anchor, limit?)` | Find decisions affecting a file |
+| `what_touched(anchor, limit?)` | Find decisions affecting a file (trigram-indexed) |
 
 ## Configuration
 
@@ -243,16 +253,20 @@ KAFKA_CONSUMER_GROUP=hippocampus
 KAFKA_TOPIC_PATTERN=decisions.*
 BATCH_SIZE=100
 BATCH_TIMEOUT_MS=500
+CONSUMER_MAX_RETRIES=5        # retries before fail-stop on a failing batch
+CONSUMER_RETRY_BACKOFF_MS=1000
 ```
 
 ## Key Files
 
 - [src/hippocampus/embeddings.py](src/hippocampus/embeddings.py) - Swappable embedding providers (OpenAI, local, mock)
-- [src/hippocampus/consumer.py](src/hippocampus/consumer.py) - Kafka consumer with sync/batch modes
+- [src/hippocampus/consumer.py](src/hippocampus/consumer.py) - Kafka consumer: sync/batch modes, causal-edge extraction, fail-stop retries
 - [src/hippocampus/mcp_server.py](src/hippocampus/mcp_server.py) - MCP tools for AI agent queries
-- [src/hippocampus/db.py](src/hippocampus/db.py) - Database queries (semantic search, temporal traversal)
-- [src/hippocampus/main.py](src/hippocampus/main.py) - CLI entry point
+- [src/hippocampus/db.py](src/hippocampus/db.py) - Database queries (hybrid search, causal/temporal traversal)
+- [src/hippocampus/main.py](src/hippocampus/main.py) - CLI entry point (with graceful shutdown)
 - [migrations/001_embeddings.sql](migrations/001_embeddings.sql) - Schema (embeddings table + consumer state)
+- [migrations/002_causal_edges_hybrid_search.sql](migrations/002_causal_edges_hybrid_search.sql) - Causal edges, full-text/trigram indexes
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) - CI: lint, mypy, unit, then integration/e2e against the Docker test database
 
 ## Dependencies
 
