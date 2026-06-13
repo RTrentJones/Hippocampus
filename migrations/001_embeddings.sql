@@ -18,11 +18,14 @@ CREATE TABLE hippocampus.embeddings (
     PRIMARY KEY (topic_id, partition_id, partition_offset)
 );
 
--- Semantic search index
--- IVFFlat: Good for <1M vectors, faster to build
--- Switch to HNSW when you hit scale (faster queries, slower builds)
-CREATE INDEX idx_embeddings_vector ON hippocampus.embeddings 
-    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Semantic search: exact scans at this scale (no ANN index here on purpose).
+-- ivfflat trains its centroids at CREATE INDEX time, so an index built on an
+-- empty table can MISS inserted rows entirely at low probe counts (measured:
+-- a stored row invisible to `ORDER BY embedding <=> $1 LIMIT k`). When data
+-- volume outgrows exact scans, build the index AFTER loading data — prefer
+-- HNSW, which builds incrementally and has no empty-table training problem:
+--   CREATE INDEX idx_embeddings_vector ON hippocampus.embeddings
+--       USING hnsw (embedding vector_cosine_ops);
 
 -- Consumer state tracking
 -- Tracks where the embedding consumer left off
