@@ -30,6 +30,7 @@ local = [
 ]
 evals = [
     "anthropic>=0.92.0",
+    "fastembed>=0.5.0",
 ]
 
 [project.scripts]
@@ -57,7 +58,15 @@ warn_unused_ignores = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["kafka.*", "pgvector.*", "sentence_transformers.*", "mcp.*", "asyncpg.*", "anthropic.*"]
+module = [
+    "kafka.*",
+    "pgvector.*",
+    "sentence_transformers.*",
+    "mcp.*",
+    "asyncpg.*",
+    "anthropic.*",
+    "fastembed.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
