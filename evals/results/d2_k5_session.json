@@ -1,0 +1,48 @@
+{
+  "config": {
+    "provider": "fastembed",
+    "sessions": 40,
+    "distractors": 2,
+    "k": 5,
+    "seed": 42,
+    "scope": "session"
+  },
+  "scores": {
+    "semantic": {
+      "root_cause_recall@5": 1.0,
+      "chain_recall@5": 1.0,
+      "mrr": 0.26958333333333323,
+      "ndcg@5": 0.7775266439350852
+    },
+    "hybrid": {
+      "root_cause_recall@5": 1.0,
+      "chain_recall@5": 1.0,
+      "mrr": 0.26958333333333323,
+      "ndcg@5": 0.7775266439350852
+    },
+    "temporal": {
+      "root_cause_recall@5": 0.85,
+      "chain_recall@5": 0.9625,
+      "mrr": 0.21916666666666668,
+      "ndcg@5": 0.7495072554605221
+    },
+    "causal": {
+      "root_cause_recall@5": 1.0,
+      "chain_recall@5": 1.0,
+      "mrr": 0.3125000000000001,
+      "ndcg@5": 0.8402647240444401
+    },
+    "anchor_causal_hybrid": {
+      "root_cause_recall@5": 1.0,
+      "chain_recall@5": 1.0,
+      "mrr": 0.3125000000000001,
+      "ndcg@5": 0.8402647240444401
+    },
+    "anchor_causal_semantic": {
+      "root_cause_recall@5": 1.0,
+      "chain_recall@5": 1.0,
+      "mrr": 0.3125000000000001,
+      "ndcg@5": 0.8402647240444401
+    }
+  }
+}

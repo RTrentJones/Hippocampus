@@ -34,10 +34,15 @@ surface the **root cause** (and the rest of the chain)?
 | `hybrid` | vector + keyword RRF | query |
 | `temporal` | k events before the failure | query + ground-truth anchor offset |
 | `causal` | causal-edge walk from the failure | query + ground-truth anchor offset |
-| `anchor_causal` | hybrid search finds the anchor, then causal walk | query only (full pipeline) |
+| `anchor_causal_hybrid` | hybrid search finds the anchor, then causal walk | query only (full pipeline) |
+| `anchor_causal_semantic` | vector search finds the anchor, then causal walk | query only (full pipeline) |
 
-`anchor_causal` is the honest end-to-end test of the README thesis: no ground
-truth is provided, the system must find its own anchor.
+The `anchor_causal_*` arms are the honest end-to-end test of the README
+thesis: no ground truth is provided, the system must find its own anchor.
+
+**Results:** see [RESULTS.md](RESULTS.md) for measured numbers (MiniLM
+embeddings, 40 sessions) including the distractor-density sweep and the bugs
+the eval surfaced.
 
 ### Metrics
 

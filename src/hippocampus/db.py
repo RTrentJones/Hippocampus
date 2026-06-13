@@ -300,14 +300,21 @@ async def hybrid_search(
     """
     pool = await get_pool()
     # Pull a larger candidate pool from each ranking before fusing so a result
-    # ranked just below `limit` in both lists can still win overall.
-    candidates = limit * 4
+    # ranked just below `limit` in both lists can still win overall; the floor
+    # keeps small limits (e.g. limit=1 anchor lookups) from starving the pool.
+    candidates = max(limit * 4, 20)
 
+    # The topic filter must apply INSIDE each candidate CTE: filtering after
+    # fusion would select the candidate pools globally and then discard the
+    # out-of-pattern rows, leaving scoped searches with near-arbitrary
+    # leftovers instead of the best in-pattern matches.
     sql = """
         WITH semantic AS (
             SELECT e.topic_id, e.partition_id, e.partition_offset,
                    ROW_NUMBER() OVER (ORDER BY e.embedding <=> $1) AS rank
             FROM hippocampus.embeddings e
+            {topic_join}
+            {semantic_where}
             ORDER BY e.embedding <=> $1
             LIMIT $3
         ),
@@ -317,7 +324,9 @@ async def hybrid_search(
                        ORDER BY ts_rank_cd(e.content_tsv, websearch_to_tsquery('english', $2)) DESC
                    ) AS rank
             FROM hippocampus.embeddings e
+            {topic_join}
             WHERE e.content_tsv @@ websearch_to_tsquery('english', $2)
+            {keyword_and}
             LIMIT $3
         ),
         fused AS (
@@ -344,14 +353,17 @@ async def hybrid_search(
             AND m.partition_id = f.partition_id
             AND m.partition_offset = f.partition_offset
         JOIN kafka.topics t ON m.topic_id = t.id
-        {where}
         ORDER BY f.rrf_score DESC
         LIMIT $4
     """
 
     if topic_pattern:
         rows = await pool.fetch(
-            sql.format(where="WHERE t.name LIKE $5"),
+            sql.format(
+                topic_join="JOIN kafka.topics tf ON tf.id = e.topic_id",
+                semantic_where="WHERE tf.name LIKE $5",
+                keyword_and="AND tf.name LIKE $5",
+            ),
             query_embedding,
             query_text,
             candidates,
@@ -360,7 +372,11 @@ async def hybrid_search(
         )
     else:
         rows = await pool.fetch(
-            sql.format(where=""), query_embedding, query_text, candidates, limit
+            sql.format(topic_join="", semantic_where="", keyword_and=""),
+            query_embedding,
+            query_text,
+            candidates,
+            limit,
         )
 
     return [_deserialize_row(row) for row in rows]

@@ -38,19 +38,23 @@ def _ids(rows: list[dict]) -> list[str]:
     return ids
 
 
-async def semantic_arm(query: str, provider: EmbeddingProvider, k: int) -> list[str]:
+async def semantic_arm(
+    query: str, provider: EmbeddingProvider, k: int, topic_pattern: str = TOPIC_PATTERN
+) -> list[str]:
     embedding = await provider.embed_one(query)
-    rows = await find_similar(embedding, limit=k, topic_pattern=TOPIC_PATTERN)
+    rows = await find_similar(embedding, limit=k, topic_pattern=topic_pattern)
     return _ids(rows)
 
 
-async def hybrid_arm(query: str, provider: EmbeddingProvider, k: int) -> list[str]:
+async def hybrid_arm(
+    query: str, provider: EmbeddingProvider, k: int, topic_pattern: str = TOPIC_PATTERN
+) -> list[str]:
     embedding = await provider.embed_one(query)
-    rows = await hybrid_search(query, embedding, limit=k, topic_pattern=TOPIC_PATTERN)
+    rows = await hybrid_search(query, embedding, limit=k, topic_pattern=topic_pattern)
     return _ids(rows)
 
 
-async def temporal_arm(anchor_offset: int, k: int) -> list[str]:
+async def temporal_arm(anchor_offset: int, k: int, topic_pattern: str = TOPIC_PATTERN) -> list[str]:
     """The k events at or before the anchor, most recent first."""
     pool = await get_pool()
     rows = await pool.fetch(
@@ -64,7 +68,7 @@ async def temporal_arm(anchor_offset: int, k: int) -> list[str]:
         """,
         anchor_offset,
         k,
-        TOPIC_PATTERN,
+        topic_pattern,
     )
     ids = []
     for row in rows:
@@ -82,14 +86,25 @@ async def causal_arm(anchor_offset: int, k: int) -> list[str]:
     return list(reversed(_ids(chain)))[:k]
 
 
-async def anchor_causal_arm(query: str, provider: EmbeddingProvider, k: int) -> list[str]:
-    """Full pipeline: hybrid search to find the anchor, then causal walk.
+async def anchor_causal_arm(
+    query: str,
+    provider: EmbeddingProvider,
+    k: int,
+    topic_pattern: str = TOPIC_PATTERN,
+    anchor_mode: str = "hybrid",
+) -> list[str]:
+    """Full pipeline: search finds the anchor, then walk causal edges.
 
-    This arm gets no ground truth at all — it must locate the failure event
+    This arm gets no ground-truth offsets — it must locate the failure event
     from the query before it can traverse, exactly as an agent would.
+    anchor_mode selects how the anchor is found: 'hybrid' (find_similar's
+    default mode) or 'semantic' (vector-only).
     """
     embedding = await provider.embed_one(query)
-    rows = await hybrid_search(query, embedding, limit=1, topic_pattern=TOPIC_PATTERN)
+    if anchor_mode == "semantic":
+        rows = await find_similar(embedding, limit=1, topic_pattern=topic_pattern)
+    else:
+        rows = await hybrid_search(query, embedding, limit=1, topic_pattern=topic_pattern)
     if not rows:
         return []
     anchor_offset = rows[0]["global_offset"]
