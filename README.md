@@ -113,7 +113,9 @@ nDCG, plus an optional LLM-judge pass for end-to-end root-cause accuracy.
 python -m evals.run --provider local --sessions 40 --output results.json
 ```
 
-CI runs a deterministic smoke eval on every change. Measured results
+CI runs a deterministic smoke eval on every change. A long-form write-up
+of the thesis, methodology, results, and the bugs the eval caught is in
+[docs/writeup.md](docs/writeup.md). Measured results
 (MiniLM embeddings, 40 sessions): similarity search degrades from 1.000 to
 0.100 root-cause recall as look-alike noise grows, the causal walk holds at
 1.000, and the full search-then-walk pipeline holds at 0.750 — see
